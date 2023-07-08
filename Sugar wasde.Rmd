@@ -1,0 +1,69 @@
+---
+title: "Supply and Demand Balance Sheets"
+output: html_document
+date: "2023-07-07"
+---
+
+Alright. What can I do in R for supply and demand balance sheets? I want to use WASDE's data for the baseline. 
+
+It's easy to get the text data into R, but the format's a bit rough. read_table from reader is good for whitespace-deliminated information. The difficulty here is that WASDE's text has a lot of text that shouldn't be parsed as whitespace delimited. So, what's easier, parsing this txt file, or using the xls file and pulling the tab I want? 
+
+```{r read in txt from wasde download}
+library(readr)
+wasde0623 <- read_table("wasde0623.txt")
+View(wasde0623)
+```
+
+I am particularly interested in corn and sugar. For the xls files, "Page 16" is sugar and "Page 12" has corn.
+
+```{r read in xls file from wasde download}
+library(readxl)
+wasde_sugar_0623 <- read_excel("wasde0623.xls", sheet = "Page 16", skip = 8)
+
+```
+Ok, have the ugly file. Do people use xml for a better workflow? this is so ugly.
+
+Well, I can pull out hte stocks to use ratios. 
+
+Should I pull in this old historical csv? That might be better.
+
+```{r pull in the historical csv}
+hist_wasde <- read_csv("oce-wasde-report-data-2023-06.csv")
+```
+This is refreshing. Formatting! wow! 
+
+Let's select sugar and plot some stuff. Unfortunately, this "historical" data goes all the way back to (gasp) 2021. Need to pull in some older files from the website.
+
+```{r 2020s sugar info}
+hist_2020s_sugar = hist_wasde[hist_wasde$Commodity == "Sugar",]
+oce_wasde_report_data_2016_01_to_2020_12 <- read_csv("oce-wasde-report-data-2016-01-to-2020-12.csv")
+oce_wasde_report_data_2010_04_to_2015_12 <- read_csv("oce-wasde-report-data-2010-04-to-2015-12.csv")
+hist_2016p_sugar = oce_wasde_report_data_2016_01_to_2020_12[oce_wasde_report_data_2016_01_to_2020_12$Commodity == "Sugar",]
+hist_2010p_sugar = oce_wasde_report_data_2010_04_to_2015_12[oce_wasde_report_data_2010_04_to_2015_12$Commodity == "Sugar",]
+```
+Alrighty then. There's a lot of balance sheet info, but maybe we can be really lazy and pull "Stocks to Use Ratio". I want to plot this over time. Maybe color by ProjEstFlag? It's all annual... How do I want to arrange the dates? These reports are frequent but projecting forward for each market year. 
+
+```{r a crappy plot of estimates and projections}
+sugar_2010p_stu = hist_2010p_sugar[hist_2010p_sugar$Attribute == "Stocks to Use Ratio",]
+ggplot(data = sugar_2010p_stu[sugar_2010p_stu$Region == "United States",], aes(x = MarketYear, y = Value, color = ProjEstFlag))+geom_point()+theme_minimal()
+```
+This is evocative, in a weird way. I don't like how it's showing up, though. Hm. 
+
+Continue this EDA
+
+```{r historical beginning stocks sugar}
+ggplot(data = hist_2010p_sugar %>% filter(Region == "United States", Attribute == "Beginning Stocks", is.na(ProjEstFlag)), aes(x = MarketYear, y = Value)) + geom_point() + geom_point(data = hist_2016p_sugar %>% filter(Region == "United States", Attribute == "Beginning Stocks", is.na(ProjEstFlag)), aes(x = MarketYear, y = Value))+theme_minimal()
+```
+
+```{r historical ending stocks sugar}
+ggplot(data = hist_2010p_sugar %>% filter(Region == "United States", Attribute == "Ending Stocks", is.na(ProjEstFlag)), aes(x = MarketYear, y = Value)) + geom_point() + geom_point(data = hist_2016p_sugar %>% filter(Region == "United States", Attribute == "Ending Stocks", is.na(ProjEstFlag)), aes(x = MarketYear, y = Value))+theme_minimal()
+```
+
+
+```{r stocks to use historical}
+
+ggplot(data = hist_2010p_sugar %>% filter(Region == "United States", Attribute == "Stocks to Use Ratio", is.na(ProjEstFlag)), aes(x = MarketYear, y = Value)) + geom_point() + geom_point(data = hist_2016p_sugar %>% filter(Region == "United States", Attribute == "Stocks to Use Ratio", is.na(ProjEstFlag)), aes(x = MarketYear, y = Value))+theme_minimal() 
+
+```
+
+Ok, fine, that's all nice. Show me the money. Where's the money? and also, this is only exploring US numbers. Mexico numbers have slightly different format, I played with that as well. 
