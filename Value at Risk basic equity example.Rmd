@@ -1,0 +1,72 @@
+---
+title: "Value at Risk R version"
+output: html_document
+date: "2023-07-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("quantmod")
+library("tidyverse")
+```
+As a first step, let's work on a tutorial for using quantmod to compute monte carlo VaR. The tutorial is at https://towardsdev.com/monte-carlo-value-at-risk-var-in-r-960e62f0f53f, there is little original in this file. 
+```{r tutorial on var via monte carlo }
+tsla <- quantmod::getSymbols("TSLA", from = base::as.Date("2021-12-01"), to = base::as.Date("2023-07-09"), auto.assign = F)
+
+## Calculate percent change on TSLA close prices
+tsla <- base::data.frame(Date = zoo::index(tsla), zoo::coredata(tsla)) %>% # Convert to a data frame because dplyr::mutate() cannot be applies to an 'xts' object and keep index as date column
+  dplyr::arrange(dplyr::desc(Date)) %>% # Sort dates by descending order to ensure we calculate percent change correctly
+  dplyr::mutate(Pct_change = (TSLA.Close / dplyr::lead(TSLA.Close)) - 1) # Calculate percent change
+```
+
+This gives us our dataframe with percent change. Now let's do some housekeeping:
+
+```{r boilerplate}
+
+## Calculate number of periods
+N <- base::nrow(tsla)
+
+## Calculate price volatility
+vol <- stats::sd(stats::na.omit(tsla$Pct_change)) * sqrt(252)
+```
+
+
+Run the simulations. The price of Tesla stock has changed quite a bit since the author wrote the tutorial, sigh. 
+
+```{r simulations}
+
+## Run simulations
+simulations <- base::list() # Initialize list to hold the simulation output
+for (i in 1:300) { # Determine number of simulations to run
+  tmp <- base::rep(278, N) # replacing  with a smaller number #956.735, N) # Initialize price with realtime quote (from original VaR post)
+  for (t in 2:N) {
+    tmp[t] <- tmp[t - 1] * (1 + (((stats::runif(1) - 0.5) * vol) / N)) # Calculate forward price
+  }
+## Note that this in itself is a choice on how to do the random walks here
+  ## Probaly not appropriate for what I want
+  simulations <- base::append(simulations, base::list(base::data.frame("Run" = base::rep(i, N), "DaysForward" = 1:N, "Price" = tmp)))
+}
+simulations <- dplyr::bind_rows(simulations) # Bind back into a data frame
+
+## Plot the simulations
+ggplot2::ggplot(simulations, ggplot2::aes(x = DaysForward, y = Price, color = base::as.factor(Run))) + ggplot2::geom_line() +theme_minimal()+ theme(legend.position="none")
+```
+
+
+
+
+```{r get end price}
+
+## Select final price of all runs
+last_price <- simulations %>% dplyr::filter(DaysForward == N)
+
+```
+
+Now just histogram it and plot/sort/figure out the moeny
+
+```{r histograms}
+
+hist(last_price$Price, main = "TSLA final MonteCarlo price", breaks = 50)
+q = quantile(last_price$Price, probs = 0.05)
+abline(v=q, col = "red")
+```
