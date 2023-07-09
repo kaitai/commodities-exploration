@@ -1,0 +1,40 @@
+---
+title: "Barchart futures data"
+output: html_document
+date: "2023-07-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(tidyverse)
+```
+
+Show me the money. Time to wrangle Barchart futures data. Let's see if I can make practice out of theory.
+
+I got a free trial of BarChart and have downloaded some data. Reminders on the month codes:
+
+Check these are good, as I hacked off the last row with some "watermarking" from barchart
+```{r import the futures price data }
+zcu23_daily_historical_data_07_08_2023 <- read_csv("zcu23_daily_historical-data-07-08-2023.csv", 
+     col_types = cols(Time = col_date(format = "%m/%d/%Y")))
+zch24_daily_historical_data_07_08_2023 <- read_csv("zch24_daily_historical-data-07-08-2023.csv", 
+                                                   col_types = cols(Time = col_date(format = "%m/%d/%Y")))
+
+```
+
+```{r plot of daily ZCH future price}
+ ggplot(data = zch24_daily_historical_data_07_08_2023, aes(x = Time, y = High, color = "High"))+geom_line()+theme_minimal()+geom_line(aes(x=Time, y= Open, color = "Open"))+geom_line(aes(x=Time, y= Last, color = "Last"))
+```
+
+Can compare the two series
+```{r plot of ZCU and ZCH}
+ggplot(data = zch24_daily_historical_data_07_08_2023, aes(x = Time, y = High, color = "24"))+geom_line()+theme_minimal()+geom_line(data = zcu23_daily_historical_data_07_08_2023, aes(x=Time, y = High, color = "23"))
+```
+
+Ok, great, as a test case we're in business. I will download a bunch more stuff. Next to-dos: 
+
+- look at the difference between actual corn prices and the next expiring future
+- do some options pricing & look at some trades
+- move on to value at risk
+- make more coffee, it was weak this morning
