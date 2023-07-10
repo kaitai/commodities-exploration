@@ -1,0 +1,27 @@
+---
+title: "Kalman and two-factor model"
+output: html_document
+date: "2023-07-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(NFCP)
+
+# Set seed for reproducibility:
+set.seed(412)
+```
+
+Alright. I want to move on to a nicer way of doing the stochastic modeling, and of course have learned a lot about spot prices (best treated as not observable) compared to futures prices (easy to download). The Kalman filter can help deal with this, and of course that brings me to my favorite, state space time series models. So I'm happy with that. I learned about the NFCP library in R and will try that out. Given the NFCP package, let's go. https://cran.r-project.org/web/packages/NFCP/vignettes/NFCP.html
+
+NFCP stands for N-Factor Commodity Pricing. I will use 2 factors. Yay. That's going to give a version of the short-term/long-term model of Schwartz and Smith. First factor is geometric Brownian motion. I need to grok how this whole thing works (love GBM, but need to absorb the factors bit). Set N_ME to 5 because "In Schwartz and Smith (2000), five futures contracts were observed at each time periods, thus five independent measurement errors were specified.="
+
+
+```{r short term long term}
+model_parameters_2F <- NFCP_parameters(N_factors = 2,
+                                      GBM = TRUE,
+                                      initial_states = FALSE,
+                                      N_ME = 5)
+```
+
+```{r }

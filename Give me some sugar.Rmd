@@ -1,0 +1,47 @@
+---
+title: "Sugar and Corn Futures"
+output: html_document
+date: "2023-07-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(tidyverse)
+swq23_daily_historical_data_07_09_2023 <- read_csv("swq23_daily_historical-data-07-09-2023.csv", col_types = cols(Time = col_date(format = "%m/%d/%Y")))
+zcu23_daily_historical_data_07_08_2023 <- read_csv("zcu23_daily_historical-data-07-08-2023.csv", 
+     col_types = cols(Time = col_date(format = "%m/%d/%Y")))
+sbv23_daily_historical_data_07_10_2023 <- read_csv("sbv23_daily_historical-data-07-10-2023.csv", col_types = cols(Time = col_date(format = "%m/%d/%Y")))
+sbv24_daily_nearby_historical_data_07_10_2023 <- read_csv("sbv24_daily-nearby_historical-data-07-10-2023.csv",   col_types = cols(Time = col_date(format = "%m/%d/%Y")))
+sbv24_daily_historical_data_07_10_2023 <- read_csv("sbv24_daily_historical-data-07-10-2023.csv", col_types = cols(Time = col_date(format = "%m/%d/%Y")))
+sbh24_daily_historical_data_07_10_2023 <- read_csv("sbh24_daily_historical-data-07-10-2023.csv", col_types = cols(Time = col_date(format = "%m/%d/%Y")))
+```
+Let's just trade off sugar and corn futures. To take a look at what's going on. 
+ I need to straighten out whether I want sugar #5 or sugar #11 though...
+```{r sugar vs corn}
+ggplot(data = swq23_daily_historical_data_07_09_2023, aes(x = Time, y = High, color = "August sugar 5")) + geom_line()+theme_minimal()+geom_line(data = zcu23_daily_historical_data_07_08_2023, aes(x = Time, y = High, color = "September corn"))+geom_line(data =sbv23_daily_historical_data_07_10_2023, aes(x=Time, y = High, color = "October sugar 11"))
+```
+
+SWQ is August London white sugar #5 (refined), while SBV is October NY world sugar (raw). ("Sugar no. 11 is the main commodity futures contract traded, while sugar no. 16 is used for the delivery of cane sugar of U.S. or duty-free origin, delivered in bulk to New York, Baltimore, Galveston, New Orleans or Savannah. One sugar futures contract represents 112,000 pounds of raw cane sugar.")  
+
+
+Let's go to sugar #11, then, as it's raw and perhaps more standard. I need SBV (Sugar 11, October) and I got daily for 24, daily for 23, and stiched-together nearby.
+
+```{r put data in historical context}
+
+ggplot(sbv24_daily_nearby_historical_data_07_10_2023, aes(x = Time, y = Open, color = "stitched nearby"))+geom_line()+theme_minimal()+geom_line(data = sbv24_daily_historical_data_07_10_2023, aes(x = Time, y = Open, color = "October 24"))+geom_line(data = sbv23_daily_historical_data_07_10_2023, aes(x = Time, y = Open, color = "October 23"))+geom_line(data = sbh24_daily_historical_data_07_10_2023, aes(x=Time, y = Open, color = "March 24"))
+```
+
+Sugar's been expensive before -- look back at early 2010s for inspiration?
+
+```{r zoom on data in historical context}
+ggplot(sbv24_daily_nearby_historical_data_07_10_2023, aes(x = Time, y = Open, color = "stitched nearby"))+geom_line()+theme_minimal()+geom_line(data = sbv24_daily_historical_data_07_10_2023, aes(x = Time, y = Open, color = "October 24"))+geom_line(data = sbv23_daily_historical_data_07_10_2023, aes(x = Time, y = Open, color = "October 23"))+geom_line(data = sbh24_daily_historical_data_07_10_2023, aes(x=Time, y = Open, color = "March 24")) + scale_x_date( limits = as.Date(c('2020-01-01','2023-08-01')))
+```
+Worldwide stocks are down a lot. El Nino is coming. Brazil's doing better. Brazil can now ship corn to China; will that mean any change for sugarcane use for ethanol in Brazil? Indonesia just put into place a rule aiming for sugarcane ethanol to be mixed into gasoline. While Indonesia's not the biggest exporter, will this exacerbate the lower stocks going into the next few years?
+
+
+
+
+```{r sugar 11}
+
+```
