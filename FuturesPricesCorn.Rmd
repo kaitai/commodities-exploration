@@ -12,7 +12,7 @@ library(tidyverse)
 
 Show me the money. Time to wrangle Barchart futures data. Let's see if I can make practice out of theory.
 
-I got a free trial of BarChart and have downloaded some data. Reminders on the month codes:
+I got a free trial of BarChart and have downloaded some data. Reminders on the month codes: ZCU23 is September 23, ZCZ23 is December 23, ZCH is March 24, ZCK is May.
 
 Check these are good, as I hacked off the last row with some "watermarking" from barchart
 ```{r import the futures price data }
@@ -38,3 +38,17 @@ Ok, great, as a test case we're in business. I will download a bunch more stuff.
 - do some options pricing & look at some trades
 - move on to value at risk
 - make more coffee, it was weak this morning
+
+Before coffee, look at prices!
+```{r import prices}
+zcz23_price_history_07_09_2023 <- read_csv("zcz23_price-history-07-09-2023.csv", 
+    col_types = cols(Time = col_date(format = "%m/%d/%Y")))
+```
+
+Let's plot price history against futures prices. I tried to find the cash price so I can get some proxy for the basis, but Barchart doesn't explain exactly what I'm getting here with ZCY00. From FarmProgress I can see the basis at particular elevators. How deep do I want to get into this? I'd love to figure out how to set up some bets based on what'll happen in the freight markets in the fall/winter, but that may be more granular than I can manage here.
+```{r plot of ZCU and ZCY cash}
+ZCY00_Barchart_Interactive_Chart_Daily_07_09_2023 <- read_csv("ZCY00_Barchart_Interactive_Chart_Daily_07_09_2023.csv", 
+     col_types = cols(`Date Time` = col_date(format = "%Y-%m-%d")), 
+     skip = 1)                
+ggplot(data = zch24_daily_historical_data_07_08_2023, aes(x = Time, y = High, color = "March 24"))+geom_line()+theme_minimal()+geom_line(data = zcu23_daily_historical_data_07_08_2023, aes(x=Time, y = High, color = "Sept 23"))+geom_line(data = ZCY00_Barchart_Interactive_Chart_Daily_07_09_2023, aes(x=`Date Time`, y = High, color = "cash history"))
+```

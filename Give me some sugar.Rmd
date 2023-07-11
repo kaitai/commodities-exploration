@@ -8,6 +8,7 @@ date: "2023-07-10"
 knitr::opts_chunk$set(echo = TRUE)
 library(readr)
 library(tidyverse)
+library(quantmod)
 swq23_daily_historical_data_07_09_2023 <- read_csv("swq23_daily_historical-data-07-09-2023.csv", col_types = cols(Time = col_date(format = "%m/%d/%Y")))
 zcu23_daily_historical_data_07_08_2023 <- read_csv("zcu23_daily_historical-data-07-08-2023.csv", 
      col_types = cols(Time = col_date(format = "%m/%d/%Y")))
@@ -32,16 +33,79 @@ Let's go to sugar #11, then, as it's raw and perhaps more standard. I need SBV (
 ggplot(sbv24_daily_nearby_historical_data_07_10_2023, aes(x = Time, y = Open, color = "stitched nearby"))+geom_line()+theme_minimal()+geom_line(data = sbv24_daily_historical_data_07_10_2023, aes(x = Time, y = Open, color = "October 24"))+geom_line(data = sbv23_daily_historical_data_07_10_2023, aes(x = Time, y = Open, color = "October 23"))+geom_line(data = sbh24_daily_historical_data_07_10_2023, aes(x=Time, y = Open, color = "March 24"))
 ```
 
-Sugar's been expensive before -- look back at early 2010s for inspiration?
+Sugar's been expensive before -- look back at early 2010s for inspiration? That 2016 spike is an El Niño. 
 
 ```{r zoom on data in historical context}
 ggplot(sbv24_daily_nearby_historical_data_07_10_2023, aes(x = Time, y = Open, color = "stitched nearby"))+geom_line()+theme_minimal()+geom_line(data = sbv24_daily_historical_data_07_10_2023, aes(x = Time, y = Open, color = "October 24"))+geom_line(data = sbv23_daily_historical_data_07_10_2023, aes(x = Time, y = Open, color = "October 23"))+geom_line(data = sbh24_daily_historical_data_07_10_2023, aes(x=Time, y = Open, color = "March 24")) + scale_x_date( limits = as.Date(c('2020-01-01','2023-08-01')))
 ```
-Worldwide stocks are down a lot. El Nino is coming. Brazil's doing better. Brazil can now ship corn to China; will that mean any change for sugarcane use for ethanol in Brazil? Indonesia just put into place a rule aiming for sugarcane ethanol to be mixed into gasoline. While Indonesia's not the biggest exporter, will this exacerbate the lower stocks going into the next few years?
+Worldwide stocks are down a lot. El Nino is coming. Brazil's doing better for the moment in terms of production. Brazil can now ship corn to China; will that mean any change for sugarcane use for ethanol in Brazil? Indonesia just put into place a rule aiming for sugarcane ethanol to be mixed into gasoline. While Indonesia's not the biggest exporter, will this exacerbate the lower stocks going into the next few years?
+
+Given the macro environment otherwise, I don't see US consumer demand for sugar spiking in the short term. Inflation in the consumer segment is increasing revenue for Pepsi and Coke, but not units shipped -- they're not going to be using much more sugar in the next year. The EPA released its new ethanol guidelines, not that different the current ones, and so the balance of corn syrup and ethanol doesn't seem like it would have a huge shift, which again supports relatively continuous use of US sugar sources. 
+
+I'd like to take a closer look at the El Niño we're looking at, as if it adversely affects both Brazilian sugarcane and southeast Asian/south Asian sugarcane, and we're already in a period of lower stocks, it's a no-brainer that sugar will face significant volatility and we could again see futures spike. 
 
 
-
+Let's play with this, have some fun. What does BSTS say about the stitched "nearby" time series? (Do we want to discount it with a consumer or producer price index? There are a lot of options... The PPIACO is a monthly number, blugh. I may get impatient here and do bad things.)
 
 ```{r sugar 11}
+library(bsts)
+getSymbols("PPIACO", src = "FRED", auto.assign = TRUE)
+
+#sbv_xts <- xts(sbv24_daily_nearby_historical_data_07_10_2023$Open, order.by = as.POSIXct(sbv24_daily_nearby_historical_data_07_10_2023$Time))
+#sbv_ts <- ts(sbv24_daily_nearby_historical_data_07_10_2023$Open)
+sbv_ts <- ts(rev(sbv24_daily_nearby_historical_data_07_10_2023$Open), start = c(2000,01,03), frequency = 365)
+```
+
+
+Yes, I will be impatient and do bad things. 
+
+```{r rip off bsts }
+Y <- sbv_ts #window(sbv_ts, start = c(2000, 1,03), end = c(2023, 7,10))
+y <- log(Y)
+# let's just try it, even if it's not so good. 
+
+### Run the bsts model
+ss <- AddLocalLevel(list(), y) # random walk only
+#ss <- AddSeasonal(ss, y, nseasons = 12)
+bsts.model <- bsts(y, state.specification = ss, niter = 100, ping=0, seed=42)
+
+### Get a suggested number of burn-ins
+burn <- SuggestBurn(0.1, bsts.model)
+
+### Predict
+p <- predict.bsts(bsts.model, horizon = 30, burn = burn, quantiles = c(.05, .95))
+```
+
+Ok, I need to tune in the seasons and a few other things, bsts is not playing nicely with my computer.
+
+Let's check what we've got (remember I logged it all above):
+
+```{r plot bsts model}
+plot(bsts.model)
+```
+
+```{r keep going}
+
+d2 <- data.frame(
+  # fitted values and predictions
+  c(exp(as.numeric(-colMeans(bsts.model$one.step.prediction.errors[-(1:30),])+y))),
+    #exp(as.numeric(p$mean))),
+  # actual data and dates
+  as.numeric(sbv_ts),
+  as.Date(sbv24_daily_nearby_historical_data_07_10_2023$Time))
+
+names(d2) <- c("Fitted", "Actual", "Date")
+
+### MAPE (mean absolute percentage error)
+MAPE <- filter(d2, year(Date)>2000) %>% summarise(MAPE=mean(abs(Actual-Fitted)/Actual))
 
 ```
+
+I didn't leave a holdout set. Should've done that. Sigh. I'll go back & do that. 
+
+```{r make a time series from p mean}
+p_mean_ts = ts(exp(p$mean), start = c(2023, 7, 11), frequency = 365)
+plot(p_mean_ts)
+```
+
+BSTS sez prices gonna go up, just like I said. But this is the crappiest model possible, so. To bed!
