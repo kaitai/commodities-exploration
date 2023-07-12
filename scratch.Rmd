@@ -1,0 +1,30 @@
+---
+title: "Summary document"
+output: html_document
+date: "2023-07-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Let's tidy some things up and summarize. 
+
+Build a supply and demand balance sheet for corn and for sugar: I used Google sheets to do this, simply to sidestep formatting and get my hands dirty without playing API games. 
+
+Macroeconomic factors: add discussion here.
+
+Construct a trade: I have a series of questions, first.
+
+* What is the utility we're trying to maximize? Are we seeking stability, hedging risk, speculating?
+
+* What time horizons are favored? (The answer to question 1 sheds a good deal of light on this.)
+
+* For the question of value at risk, the book-learning way of specifying which VaR number you want is with a holding period and a probability; let's check those details (fallback of 1 day holding and 95%). 
+
+* Basically all I've got for data is Barchart.com. I feel like I don't have enough data on costs for options. Barchart gives me futures prices and some info on options on futures.
+
+Alright, let's do a bit of corn price forecasting. Now that I've talked with Jose, I have a bit of an idea that I *don't* want to be emphasizing very long holding periods. Let's get down into intraday prices, then, on December corn futures. I will need to refresh my data -- today's WASDE report and discussion really change the profile of things. 
+
+
+

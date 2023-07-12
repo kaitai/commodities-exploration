@@ -52,3 +52,197 @@ ZCY00_Barchart_Interactive_Chart_Daily_07_09_2023 <- read_csv("ZCY00_Barchart_In
      skip = 1)                
 ggplot(data = zch24_daily_historical_data_07_08_2023, aes(x = Time, y = High, color = "March 24"))+geom_line()+theme_minimal()+geom_line(data = zcu23_daily_historical_data_07_08_2023, aes(x=Time, y = High, color = "Sept 23"))+geom_line(data = ZCY00_Barchart_Interactive_Chart_Daily_07_09_2023, aes(x=`Date Time`, y = High, color = "cash history"))
 ```
+Let's also compare with the "nearby" series I get from Barchart, where they stitch together nearest-expiration futures. 
+
+```{r read nearby}
+zcz23_daily_nearby_historical_data_07_12_2023 <- read_csv("zcz23_daily-nearby_historical-data-07-12-2023.csv", col_types = cols(Time = col_date(format = "%m/%d/%Y")))
+```
+
+```{r compare nearby and cash}
+ggplot(data = ZCY00_Barchart_Interactive_Chart_Daily_07_09_2023, aes(x=`Date Time`, y = High, color = "cash history"))+geom_line()+theme_minimal()+geom_line(data = zcz23_daily_nearby_historical_data_07_12_2023, aes(x = Time, y = High, color = "nearby"))
+```
+
+Like, is this the nonconvergence I heard about, or is there basis in here, or what? I gotta read up on this. What's with the seasonal divergence there, too? Let's put this aside and move on, but I have a lot of questions. 
+
+```{r divergence between cash and nearby}
+#zcz23_daily_nearby_historical_data_07_12_2023
+```
+
+```{r plot diff of of ZCU and ZCH}
+ggplot(data = zch24_daily_historical_data_07_08_2023, aes(x = Time, y = High, color = "24"))+geom_line()+theme_minimal()+geom_line(data = zcu23_daily_historical_data_07_08_2023, aes(x=Time, y = High, color = "23"))
+```
+I'm getting the sense that the juice is in the differences. Let's take a category theory approach, look at the relationships, haha. 
+
+```{r look at diff between zcz and zcu}
+sept_dec_corn_diff = merge(zcz23_price_history_07_09_2023, zcu23_daily_historical_data_07_08_2023, by = "Time", suffix = c("_zcz23", "_zcu23"))
+ggplot(data = sept_dec_corn_diff, aes(x=Time, y = Open_zcz23))+geom_line()+theme_minimal()+ geom_line(aes(x = Time, y = Open_zcu23))
+```
+Ok, look at the differences
+
+```{r sept minus dec}
+sept_dec_corn_diff$sept_less_dec_open = sept_dec_corn_diff$Open_zcu23 - sept_dec_corn_diff$Open_zcz23
+ggplot(sept_dec_corn_diff, aes(x = Time, y = sept_less_dec_open))+geom_line()+theme_minimal()
+```
+Oh interesting. Hm. What happened mid-may? 
+
+
+# Initial daily time series forecast
+
+Let's do a very first-pass STL decomposition on the stitched long-term series, out of curiosity. I'm going to just build up my intuition here. Ah, all the code I no longer have access to, my boilerplate backtesting.....
+
+```{r use forecast}
+library(forecast)
+library(TSstudio)
+# df[nrow(df):1,]
+zc_nearby_ts <- zoo(zcz23_daily_nearby_historical_data_07_12_2023, order.by = as.Date(zcz23_daily_nearby_historical_data_07_12_2023$Time, "%m/%d/%Y"))
+zc_interp <- merge(zc_nearby_ts, zoo(,seq(start(zc_nearby_ts),end(zc_nearby_ts),by="day")), right = TRUE)
+zc_open_interp = zc_interp$Open
+zc_open_interp <- na.approx(zc_open_interp)
+```
+
+```{r ts decompose}
+#ts_decompose(zc_open_interp)
+```
+
+```{r try out seasonal}
+ts_seasonal(zc_open_interp, type = "all")
+```
+
+*I changed my time series handling and broke the seasonal decomp plot* 
+That's fair. Some change in level. But take a look at the random part -- significant room for improvement here by looking at the cyclicality there. 
+
+ 
+
+```{r use prophet sigh}
+library(prophet)
+df = zcz23_daily_nearby_historical_data_07_12_2023[,c("Time", "Open")]
+colnames(df) = c("ds", "y")
+m <- prophet(df)
+future <- make_future_dataframe(m, periods = 21)
+
+```
+```{r more prophet}
+forecast <- predict(m, future)
+tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
+
+```
+```{r plot prophet}
+plot(m, forecast)
+
+```
+```{r plot prophet components}
+prophet_plot_components(m, forecast)
+```
+# Quick pass with BSTS
+```{r bsts}
+library(bsts)
+```
+
+```{r rip off bsts }
+Y <- as.numeric(coredata(zc_open_interp)) #window(sbv_ts, start = c(2000, 1,03), end = c(2023, 7,10))
+y <- log(Y)
+# let's just try it, even if it's not so good. 
+
+### Run the bsts model
+ss <- AddLocalLevel(list(), y) # random walk only
+ss <- AddSeasonal(ss, y, nseasons = 12)
+bsts.model <- bsts(y, state.specification = ss, niter = 200, ping=0, seed=42)
+
+### Get a suggested number of burn-ins
+burn <- SuggestBurn(0.1, bsts.model)
+
+### Predict
+p <- predict.bsts(bsts.model, horizon = 30, burn = burn, quantiles = c(.05, .95))
+```
+
+```{r plot bsts model}
+plot(bsts.model)
+```
+
+```{r dataframe}
+d2 <- data.frame(
+  # fitted values and predictions
+  #c(
+    exp(as.numeric(-colMeans(bsts.model$one.step.prediction.errors[])+y)),
+   # exp(as.numeric(p$mean))),
+  # actual data and dates
+  exp(y),
+  seq(start(zc_nearby_ts),end(zc_nearby_ts),by="day"))
+
+names(d2) <- c("Fitted", "Actual", "Date")
+
+### MAPE (mean absolute percentage error)
+MAPE <- filter(d2, year(Date)>2000) %>% summarise(MAPE=mean(abs(Actual-Fitted)/Actual))
+```
+Ok. Overfitting here we come!
+```{r plot bsts historical}
+
+ ggplot(data = d2, aes(x=Date, y = Actual, color = "Actual"))+ geom_line()+theme_minimal()+geom_line(aes(x=Date, y = Fitted, color = "Fitted"))
+```
+So nicely overfitted, hahah.
+
+```{R components}
+components <- cbind.data.frame(
+  colMeans(bsts.model$state.contributions[-(1:burn),"trend",]),           
+  colMeans(bsts.model$state.contributions[-(1:burn),"seasonal.12.1",]),
+  as.Date(seq(start(zc_nearby_ts),end(zc_nearby_ts), by = "day")))
+names(components) <- c("Trend", "Seasonality", "Date")
+#components <- melt(components, id="Date")
+#names(components) <- c("Date", "Component", "Value")
+#I think it wants to reshape things, how do I do that again
+long_comp = pivot_longer(components, cols = !Date, names_to = "Component", values_to = "Value" )
+```
+Yeah, yearly seasonality is not useful here
+
+Really need acreage and other externals here. This is not a series with enough seasonality etc to justify these unvariate methods. 
+
+June acreage:
+
+```{r acreage}
+acreage_df =data.frame(c(89.1,91.7,92,92.7,89.9,94), seq(as.Date("2018/1/1"), as.Date("2023/1/1"), "years"))
+colnames(acreage_df) = c("Jun_acres_millions", "Year")
+```
+
+# Move to shorter time horizons
+
+Let's take a look at the intraday info. Again, I'm going to have to deal with a ton of time and date stuff.
+
+```{r look at itnraday}
+zcz23_intraday_30min_historical_data_07_12_2023 <- read_csv("zcz23_intraday-30min_historical-data-07-12-2023.csv", 
+     col_types = cols(Time = col_datetime(format = "%m/%d/%Y %H:%M")))
+ggplot(data = zcz23_intraday_30min_historical_data_07_12_2023, aes(x= Time, y = Open)) + geom_point() + theme_minimal()
+```
+
+What's volatility within a day? What's mean-reversion on this timescale (is there any?).
+
+# Look at fundamentals
+
+I do want the stock to use vs average farm price curve, and I realized maybe that wasde archive file has it accessible.
+
+```{r read wasde archive file}
+oce_wasde_report_data_2016_01_to_2020_12 <- read_csv("oce-wasde-report-data-2016-01-to-2020-12.csv", 
+    col_types = cols(ReleaseDate = col_date(format = "%Y-%m-%d")))
+oce_wasde_report_data_2010_04_to_2015_12 <- read_csv("oce-wasde-report-data-2010-04-to-2015-12.csv", 
+    col_types = cols(ReleaseDate = col_date(format = "%Y-%m-%d")))
+big_wasde = rbind(oce_wasde_report_data_2010_04_to_2015_12, oce_wasde_report_data_2016_01_to_2020_12)
+
+us_corn = big_wasde %>% filter(ReportTitle == "U.S. Feed Grain and Corn Supply and Use", Region == "United States", Commodity == "Corn")
+unique(us_corn$Attribute)
+``` 
+
+I want to see the attributes
+
+Ok, I need every marketyear, I would like to use projestflag but I'm tired and a kid is sitting on me, I need the attributes for stocks and use 
+```{r filter stocks and use}
+us_corn_use = us_corn %>% filter(Attribute == "Use, Total")
+us_corn_stocks = us_corn %>% filter(Attribute == "Ending Stocks")
+us_corn_avg_farm_price = us_corn %>% filter(Attribute == "Avg. Farm Price")
+```
+I want one dataframe with the marketyear, no projected or estimated maybe??, with one colum price and the other stocks to use. 
+```{r pivoted corn}
+# take the corn df, pivot longer with attribute and value
+us_corn_no_est_proj = us_corn %>% filter(is.na(ProjEstFlag), ForecastMonth == 7) %>% select(Attribute, Value, MarketYear)
+temp = pivot_wider(us_corn_no_est_proj, names_from = Attribute, values_from = Value, id_cols = MarketYear)
+temp$stocks_over_use = temp$`Beginning Stocks`/temp$`Use, Total`
+ggplot(data = temp, aes(x = stocks_over_use, y = `Avg. Farm Price`, label = MarketYear))+ geom_point()+theme_minimal()+geom_label()
+```
